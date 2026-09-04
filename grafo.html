@@ -5,40 +5,119 @@
 <title>Grafo da Cidade</title>
 <style>
   body { font-family: sans-serif; background: #f4f4f4; }
-  circle { fill: lightblue; stroke: black; }
-  line { stroke: black; stroke-width: 2; }
-  text { font-size: 12px; text-anchor: middle; }
+  .no { fill: #ff69b4; stroke: white; stroke-width: 3; }
+  .no-label { font-size: 14px; font-weight: bold; text-anchor: middle; fill: white; }
 </style>
 </head>
 <body>
   <h1>Grafo da cidade</h1>
-  <svg width="500" height="350">
-    <!-- ruas horizontais (lado com lado) -->
-    <line x1="100" y1="100" x2="250" y2="100" />
-    <line x1="250" y1="100" x2="400" y2="100" />
-    <line x1="100" y1="250" x2="250" y2="250" />
-    <line x1="250" y1="250" x2="400" y2="250" />
+  <svg width="800" height="550"></svg>
 
-    <!-- ruas verticais (frente com frente) -->
-    <line x1="100" y1="100" x2="100" y2="250" />
-    <line x1="250" y1="100" x2="250" y2="250" />
-    <line x1="400" y1="100" x2="400" y2="250" />
+  <script>
+    // grafo: 6 nos, 2 linhas de 3, arestas lado-com-lado e frente-com-frente
+    const NOS = [
+      { id: 1, x: 150, y: 150 },
+      { id: 2, x: 400, y: 150 },
+      { id: 3, x: 650, y: 150 },
+      { id: 4, x: 150, y: 400 },
+      { id: 5, x: 400, y: 400 },
+      { id: 6, x: 650, y: 400 },
+    ];
+    const RUAS = [
+      [1, 2], [2, 3],
+      [4, 5], [5, 6],
+      [1, 4], [2, 5], [3, 6],
+    ];
 
-    <!-- nos linha 0 -->
-    <circle cx="100" cy="100" r="18" />
-    <text x="100" y="104">1</text>
-    <circle cx="250" cy="100" r="18" />
-    <text x="250" y="104">2</text>
-    <circle cx="400" cy="100" r="18" />
-    <text x="400" y="104">3</text>
+    // estilo da rua, copiando o visual do jogo da Polly
+    const LARGURA_RUA = 70;
+    const COR_ASFALTO = "#a8a6a3";
+    const COR_FAIXA = "#ffffff";
+    const DIST_FAIXA_PEDESTRE = 55; // distancia da faixa de pedestre ate o no
 
-    <!-- nos linha 1 -->
-    <circle cx="100" cy="250" r="18" />
-    <text x="100" y="254">4</text>
-    <circle cx="250" cy="250" r="18" />
-    <text x="250" y="254">5</text>
-    <circle cx="400" cy="250" r="18" />
-    <text x="400" y="254">6</text>
-  </svg>
+    const svg = document.querySelector("svg");
+    const ns = "http://www.w3.org/2000/svg";
+    const porId = Object.fromEntries(NOS.map(n => [n.id, n]));
+
+    function el(tag, attrs) {
+      const e = document.createElementNS(ns, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      svg.appendChild(e);
+      return e;
+    }
+
+    // faixa de pedestre (zebra) perto de um no, numa rua horizontal ou vertical
+    function faixaDePedestre(cx, cy, horizontal) {
+      const nFaixas = 5, espaco = 4, comprimento = 30;
+      const largura = LARGURA_RUA - 16;
+      for (let i = 0; i < nFaixas; i++) {
+        const offset = (i - (nFaixas - 1) / 2) * (comprimento / nFaixas);
+        if (horizontal) {
+          el("rect", {
+            x: cx + offset - 2, y: cy - largura / 2,
+            width: 4, height: largura, fill: COR_FAIXA,
+          });
+        } else {
+          el("rect", {
+            x: cx - largura / 2, y: cy + offset - 2,
+            width: largura, height: 4, fill: COR_FAIXA,
+          });
+        }
+      }
+    }
+
+    // desenha uma rua (aresta) entre dois nos
+    function desenhaRua(a, b) {
+      const horizontal = a.y === b.y;
+      const [de, para] = horizontal
+        ? (a.x < b.x ? [a, b] : [b, a])
+        : (a.y < b.y ? [a, b] : [b, a]);
+
+      // pista de asfalto
+      if (horizontal) {
+        el("rect", {
+          x: de.x, y: de.y - LARGURA_RUA / 2,
+          width: para.x - de.x, height: LARGURA_RUA,
+          fill: COR_ASFALTO,
+        });
+      } else {
+        el("rect", {
+          x: de.x - LARGURA_RUA / 2, y: de.y,
+          width: LARGURA_RUA, height: para.y - de.y,
+          fill: COR_ASFALTO,
+        });
+      }
+
+      // faixa central tracejada
+      el("line", horizontal
+        ? { x1: de.x + 15, y1: de.y, x2: para.x - 15, y2: de.y }
+        : { x1: de.x, y1: de.y + 15, x2: de.x, y2: para.y - 15}
+      ).setAttribute("stroke", COR_FAIXA);
+      const linha = svg.lastElementChild;
+      linha.setAttribute("stroke-width", 5);
+      linha.setAttribute("stroke-dasharray", "22 16");
+
+      // faixas de pedestre perto de cada esquina
+      if (horizontal) {
+        faixaDePedestre(de.x + DIST_FAIXA_PEDESTRE, de.y, true);
+        faixaDePedestre(para.x - DIST_FAIXA_PEDESTRE, para.y, true);
+      } else {
+        faixaDePedestre(de.x, de.y + DIST_FAIXA_PEDESTRE, false);
+        faixaDePedestre(para.x, para.y - DIST_FAIXA_PEDESTRE, false);
+      }
+    }
+
+    // 1) desenha todas as ruas primeiro (ficam atras dos nos)
+    for (const [a, b] of RUAS) {
+      desenhaRua(porId[a], porId[b]);
+    }
+
+    // 2) desenha os nos (esquinas) por cima
+    for (const no of NOS) {
+      el("circle", { cx: no.x, cy: no.y, r: 22, class: "no" });
+      const label = el("text", { x: no.x, y: no.y + 5, class: "no-label" });
+      label.textContent = no.id;
+    }
+  </script>
 </body>
 </html>
